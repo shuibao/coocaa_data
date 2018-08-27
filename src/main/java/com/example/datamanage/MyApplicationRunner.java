@@ -23,10 +23,10 @@ import java.util.Date;
 public class MyApplicationRunner implements ApplicationRunner {
 
     //static String infile = "C:/Users/lxq/Desktop/coocaa/data/08071883/Project Manage-CSV.csv";
-    //static String outfile = "C:/Users/lxq/Desktop/coocaa/data/08071883/demores.csv";
-    //static String notusedfile = "C:/Users/lxq/Desktop/coocaa/data/08071883/notused.csv";
+    //static String filterOutFile = "C:/Users/lxq/Desktop/coocaa/data/08071883/demores.csv";
+    //static String illegalOutFile = "C:/Users/lxq/Desktop/coocaa/data/08071883/notused.csv";
 
-    static int notUsedNum = 0;
+    static int illegalDataNum = 0;
     static int allNum = 0;
     static int usedNum = 0;
     @Value("${spring.datasource.url}")
@@ -46,10 +46,10 @@ public class MyApplicationRunner implements ApplicationRunner {
             infileName = args.getSourceArgs()[0];
         }
 //        String infile =path.getAbsolutePath()+"\\"+"data.csv";
-//        String notusedfile = path.getAbsolutePath()+"\\"+"notused.csv";
-        String infile = "C:/Users/lxq/Desktop/coocaa/data/09141028/Project Manage.csv";
-        String outfile = "C:/Users/lxq/Desktop/coocaa/data/09141028/demores.csv";
-        String notusedfile = "C:/Users/lxq/Desktop/coocaa/data/09141028/notused.csv";
+//        String illegalOutFile = path.getAbsolutePath()+"\\"+"notused.csv";
+        String infile = "C:/Users/lxq/Desktop/coocaa/data/08231006/Project Manage.csv";
+        String filterOutFile = "C:/Users/lxq/Desktop/coocaa/data/08231006/filter_data.csv";
+        String illegalOutFile = "C:/Users/lxq/Desktop/coocaa/data/08231006/illegal_data.csv";
         Connection conn = null;
         Class.forName(name);//指定连接类型
         conn = DriverManager.getConnection(url, user, password);//获取连接
@@ -59,15 +59,17 @@ public class MyApplicationRunner implements ApplicationRunner {
         Long begin = new Date().getTime();
         if (conn!=null) {
             //System.out.println("获取连接成功");
-            lists = readCsv(infile,notusedfile);
+            lists = readCsv(infile,illegalOutFile,filterOutFile);
             insertIssue(conn,lists.get(0));
             //project数据表 此表作用不大，改动也比较小，如果每次都更新的话会降低性能，
-            //insertProject(conn,lists.get(1));
+            insertProject(conn,lists.get(1));
             Long end = new Date().getTime();
             DecimalFormat df = new DecimalFormat("0.00");
-            String passingRate = df.format((float)usedNum*100/allNum);
-            System.out.println("已入库数据 :" + usedNum+ " 条");
-            System.out.println("不合法数据 :" + notUsedNum + " 条");
+            String passingRate = df.format((float)usedNum*100/(usedNum+illegalDataNum));
+            System.out.print("已入库数据 :" + usedNum+ " 条");
+            System.out.print("  非法数据 :" + illegalDataNum + " 条");
+            System.out.print("  过滤数据 :" + (allNum-usedNum-illegalDataNum) + " 条");
+            System.out.println("  总数据 :" + allNum + " 条");
             System.out.println("数据合格率 :" + passingRate+"%");
             System.out.println("花费时间 :" +(float)(end-begin)/1000+"s" );
         }else {
@@ -76,7 +78,7 @@ public class MyApplicationRunner implements ApplicationRunner {
 
 
     }
-    public static ArrayList<ArrayList> readCsv(String infile,String notusedfile ){
+    public static ArrayList<ArrayList> readCsv(String infile,String illegalOutFile,String filterOutFile ){
         // 用来保存CSV里面的所有数据（未筛选）
         ArrayList<String[]> csvFileList = new ArrayList<String[]>();
         //用来保存筛选后的合法数据
@@ -87,7 +89,8 @@ public class MyApplicationRunner implements ApplicationRunner {
         try {
             CsvReader reader = new CsvReader(infile, ',', Charset.forName("GBK"));
             //不合理的数据输出打印为CSV
-            CsvWriter notUsedWriter = new CsvWriter(notusedfile, ',', Charset.forName("GBK"));
+            CsvWriter illegalDataWriter = new CsvWriter(illegalOutFile, ',', Charset.forName("GBK"));
+            CsvWriter filterDataWriter = new CsvWriter(filterOutFile, ',', Charset.forName("GBK"));
             int indexs[] = new int[27];
             for(int i = 0; i < indexs.length; i++) {
                 indexs[i] = -1;
@@ -216,7 +219,8 @@ public class MyApplicationRunner implements ApplicationRunner {
             }
             // 写表头
             //String[] csvHeaders = { "编号", "姓名", "年龄" };
-            notUsedWriter.writeRecord(reader.getHeaders());
+            String[]illegalDataHeaders ={"Summary","Issue key","Issue id","Issue Type","Status","Project key","Project name","Project type","Project lead","Priority","Resolution","Assignee","Reporter","Creator","Created","Updated","Last Viewed","Resolved","Original Estimate","Remaining Estimate","Time Spent","Work Ratio","Σ Original Estimate","Σ Remaining Estimate","Σ Time Spent","Sprint","Custom field (Story Points)"};
+            illegalDataWriter.writeRecord(illegalDataHeaders);
 
             reader.close();
             // 写内容
@@ -225,19 +229,12 @@ public class MyApplicationRunner implements ApplicationRunner {
 
             //总数量
             allNum = csvFileList.size();
-
             for (int row = 0; row < csvFileList.size(); row++) {
                 // 取得第row行第0列的数据
                 //0,1,2,4,5,6,7,8,9,12,13,14,15,16,17,18,19,20,29,30,31,32,33,34,35,44,45
                 //String cell = csvFileList.get(row)[0];
                 //System.out.println("------------>"+cell);
-                if(csvFileList.get(row)[indexs[4]].equals("Closed")){
-                    csvFileList.get(row)[indexs[4]]="1";
-                }else if(csvFileList.get(row)[indexs[4]].equals("In Progress")){
-                    csvFileList.get(row)[indexs[4]]="0";
-                }else{
-                    csvFileList.get(row)[indexs[4]]="-1";
-                }
+
                 //if(csvFileList.get(row)[])
                 String[] csvContent = {csvFileList.get(row)[indexs[0]], csvFileList.get(row)[indexs[1]], csvFileList.get(row)[indexs[2]], csvFileList.get(row)[indexs[3]], csvFileList.get(row)[indexs[4]],
                         csvFileList.get(row)[indexs[5]], csvFileList.get(row)[indexs[6]], csvFileList.get(row)[indexs[7]], csvFileList.get(row)[indexs[8]], csvFileList.get(row)[indexs[9]],
@@ -250,41 +247,69 @@ public class MyApplicationRunner implements ApplicationRunner {
                         csvContent[15], csvContent[16], csvContent[17], csvContent[18], csvContent[19],
                         csvContent[20], csvContent[21], csvContent[22], csvContent[23], csvContent[24], csvContent[25],
                         csvContent[26]};
-                //18:Original Estimate 19:Remaining Estimate 20:Time Spent
 
-                //预估时间不能为空或者0，工作量不能为空
-                if(csvIssueContent[15].equals("")||csvIssueContent[18].equals('0')||csvIssueContent[23].equals("")) {
-                    notUsedWriter.writeRecord(csvContent);
-                    notUsedNum++;
+                if(csvFileList.get(row)[indexs[4]].equals("Closed")||csvFileList.get(row)[indexs[4]].equals("Resolved")){
+                    csvIssueContent[5]="1";
+                }else if(csvFileList.get(row)[indexs[4]].equals("In Progress")){
+                    csvIssueContent[5]="0";
+                }else if(csvFileList.get(row)[indexs[4]].equals("New")||csvFileList.get(row)[indexs[4]].equals("Open")){
+                    csvIssueContent[5]="-1";
+                }else{
+                    csvIssueContent[5]="-2";
                 }
-                //工作量不能为空且满足斐波那契数列
-                else if (!csvIssueContent[23].equals("")&&!isFibonacci(Integer.parseInt(csvIssueContent[23]))){
-                    notUsedWriter.writeRecord(csvContent);
-                    notUsedNum++;
-                }
-                //如果问题已解决则花费时间不能为空
-                else if(csvIssueContent[5].equals("1")&&csvIssueContent[17].equals("")){
-                    notUsedWriter.writeRecord(csvContent);
-                    notUsedNum++;
-                } else{
-                    //datetime不能写入空
-                    //如果resolved为空 将它置为0000/00/00 00:00
-                    if(csvIssueContent[14].equals("")){
-                        csvIssueContent[14]="0000/00/00 00:00";
-                    }
-                    //花费时间为空 则导入0
-                    if(csvIssueContent[17].equals("")){
-                        csvIssueContent[17]="0";
-                    }
-                    issueList.add(csvIssueContent);
+                //数据筛选
 
+                //issue type 为Bug,Epic,Sub-task,Task 过滤掉
+                if(csvContent[3].equals("Bug")||csvContent[3].equals("Epic")||csvContent[3].equals("Sub-task")||csvContent[3].equals("Task")){
+                    filterDataWriter.writeRecord(csvContent);
+                }
+                //issue type 为Story,Improvement,New Feature则筛选
+                if(csvContent[3].equals("Story")||csvContent[3].equals("Improvement")||csvContent[3].equals("New Feature")) {
+                    //issue status为new和open 如果sprint为空则story point 可以为空或者满足要求
+                    if (csvIssueContent[5].equals("-1")&&csvContent[25].equals("")){
+                        if (!csvContent[26].equals("")){
+                            if(csvContent[26].contains(".")||!isFibonacci(Integer.parseInt(csvContent[26]))){
+                            illegalDataWriter.writeRecord(csvContent);
+                            illegalDataNum++;}
+                        }else{
+                            filterDataWriter.writeRecord(csvContent);
+                        }
+                    }else{
+                        //预估时间不能为空或者0
+                        if(csvContent[18].equals("")||csvContent[18].equals("0")) {
+                            illegalDataWriter.writeRecord(csvContent);
+                            illegalDataNum++;
+                        }
+                        //工作量不能为空且满足斐波那契数列
+                        else if (csvContent[26].equals("")||csvContent[26].contains(".")||!isFibonacci(Integer.parseInt(csvContent[26]))){
+                            illegalDataWriter.writeRecord(csvContent);
+                            illegalDataNum++;
+                        }
+                        //如果问题已解决则花费时间不能为空
+                        else if(csvIssueContent[5].equals("1")&&csvContent[20].equals("")||csvContent[20].equals("0")){
+                            illegalDataWriter.writeRecord(csvContent);
+                            illegalDataNum++;
+                        }else{
+                            //datetime不能写入空
+                            //如果resolved为空 将它置为0000/00/00 00:00
+                            if(csvIssueContent[14].equals("")){
+                                csvIssueContent[14]="1800/01/01 00:00";
+                            }
+                            //花费时间为空 则导入0
+                            if(csvIssueContent[17].equals("")){
+                                csvIssueContent[17]="0";
+                            }
+                            issueList.add(csvIssueContent);
+                        }
+                    }
                 }
                 //project table
                 String[] csvProjectContent = {csvContent[5], csvContent[6], csvContent[7], csvContent[8]};
 
                 projectList.add(csvProjectContent);
             }
-            notUsedWriter.close();
+            filterDataWriter.close();
+            illegalDataWriter.close();
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -310,9 +335,13 @@ public class MyApplicationRunner implements ApplicationRunner {
             PreparedStatement pst = (PreparedStatement) conn.prepareStatement("");//准备执行语句
             int dataNum = dataList.size();
             // 外层循环，总提交事务次数
-            for (int row = 0; row < dataNum; row++) {
-                suffix = new StringBuffer();
-                // 第j次提交步长
+            int k = dataNum/10000+1;
+            int lastSize = dataNum%10000==0?10000:dataNum%10000;
+            for (int i = 0; i <k ; i++) {
+                int m = i==k-1?lastSize:10000;
+                for (int row = 0; row < m; row++) {
+                    suffix = new StringBuffer();
+                    // 第j次提交步长
 //                for (int j = 1; j <= 1000; j++) {
 //                    // 构建SQL后缀
 //                     suffix.append("('").append(UUID.randomUUID().toString()).append("','") .append(i*j).append("','123456','男','教师','www.bbk.com','XX大学','2016-08-12 14:43:26','备注'),");
@@ -324,22 +353,24 @@ public class MyApplicationRunner implements ApplicationRunner {
 //                        .append(dataList.get(row)[15]).append("','").append(dataList.get(row)[16]).append("','").append(dataList.get(row)[17]).append("','").append(dataList.get(row)[18]).append("','")
 //                        .append(dataList.get(row)[19]).append("','").append(dataList.get(row)[20]).append("','").append(dataList.get(row)[21]).append("','").append(dataList.get(row)[22]).append("','")
 //                        .append(dataList.get(row)[23]).append("','").append(dataList.get(row)[24]).append("','").append(dataList.get(row)[25]).append("','").append(dataList.get(row)[26]).append("'),");
-                suffix.append("('").append(dataList.get(row)[0]).append("','") .append(dataList.get(row)[1]).append("','").append(dataList.get(row)[2]).append("','")
-                        .append(dataList.get(row)[3]).append("','").append(dataList.get(row)[4]).append("','").append(dataList.get(row)[5]).append("','").append(dataList.get(row)[6]).append("','")
-                        .append(dataList.get(row)[7]).append("','").append(dataList.get(row)[8]).append("','").append(dataList.get(row)[9]).append("','").append(dataList.get(row)[10]).append("','")
-                        .append(dataList.get(row)[11]).append("','").append(dataList.get(row)[12]).append("','").append(dataList.get(row)[13]).append("','").append(dataList.get(row)[14]).append("','")
-                        .append(dataList.get(row)[15]).append("','").append(dataList.get(row)[16]).append("','").append(dataList.get(row)[17]).append("','").append(dataList.get(row)[18]).append("','")
-                        .append(dataList.get(row)[19]).append("','").append(dataList.get(row)[20]).append("','").append(dataList.get(row)[21]).append("','").append(dataList.get(row)[22]).append("','").append(dataList.get(row)[23]).append("'),");
+                    suffix.append("('").append(dataList.get(row)[0]).append("','") .append(dataList.get(row)[1]).append("','").append(dataList.get(row)[2]).append("','")
+                            .append(dataList.get(row)[3]).append("','").append(dataList.get(row)[4]).append("','").append(dataList.get(row)[5]).append("','").append(dataList.get(row)[6]).append("','")
+                            .append(dataList.get(row)[7]).append("','").append(dataList.get(row)[8]).append("','").append(dataList.get(row)[9]).append("','").append(dataList.get(row)[10]).append("','")
+                            .append(dataList.get(row)[11]).append("','").append(dataList.get(row)[12]).append("','").append(dataList.get(row)[13]).append("','").append(dataList.get(row)[14]).append("','")
+                            .append(dataList.get(row)[15]).append("','").append(dataList.get(row)[16]).append("','").append(dataList.get(row)[17]).append("','").append(dataList.get(row)[18]).append("','")
+                            .append(dataList.get(row)[19]).append("','").append(dataList.get(row)[20]).append("','").append(dataList.get(row)[21]).append("','").append(dataList.get(row)[22]).append("','").append(dataList.get(row)[23]).append("'),");
 
-                // 构建完整SQL
-                String sql = prefix + suffix.substring(0, suffix.length() - 1)+"ON DUPLICATE KEY UPDATE issue_id=VALUES(issue_id)";
-                // 添加执行SQL
-                pst.addBatch(sql);
+                    // 构建完整SQL
+                    String sql = prefix + suffix.substring(0, suffix.length() - 1)+"ON DUPLICATE KEY UPDATE issue_id=VALUES(issue_id)";
+                    // 添加执行SQL
+                    pst.addBatch(sql);
+                    usedNum++;
+                }
                 // 执行操作
                 pst.executeBatch();
                 // 提交事务
                 conn.commit();
-                usedNum++;
+
                 // 清空上一次添加的数据
                 suffix = new StringBuffer();
             }
@@ -363,19 +394,25 @@ public class MyApplicationRunner implements ApplicationRunner {
             PreparedStatement  pst = (PreparedStatement) conn.prepareStatement("");//准备执行语句
             int dataNum = dataList.size();
             // 外层循环，总提交事务次数
-            for (int row = 0; row < dataNum; row++) {
-                suffix = new StringBuffer();
-                // 第j次提交步长
+            int k = dataNum/10000+1;
+            int lastSize = dataNum%10000==0?10000:dataNum%10000;
+            for (int i = 0; i <k ; i++) {
+                int m = i==k-1?lastSize:10000;
+                for (int row = 0; row < m; row++) {
+                    suffix = new StringBuffer();
+                    // 第j次提交步长
 //                for (int j = 1; j <= 1000; j++) {
 //                    // 构建SQL后缀
 //                     suffix.append("('").append(UUID.randomUUID().toString()).append("','") .append(i*j).append("','123456','男','教师','www.bbk.com','XX大学','2016-08-12 14:43:26','备注'),");
 //                }
-                suffix.append("('").append(dataList.get(row)[0]).append("','") .append(dataList.get(row)[1]).append("','").append(dataList.get(row)[2]).append("','").append(dataList.get(row)[3]).append("'),");
+                    suffix.append("('").append(dataList.get(row)[0]).append("','") .append(dataList.get(row)[1]).append("','").append(dataList.get(row)[2]).append("','").append(dataList.get(row)[3]).append("'),");
 
-                // 构建完整SQL
-                String sql = prefix + suffix.substring(0, suffix.length() - 1);
-                // 添加执行SQL
-                pst.addBatch(sql);
+                    // 构建完整SQL
+                    String sql = prefix + suffix.substring(0, suffix.length() - 1);
+                    // 添加执行SQL
+                    pst.addBatch(sql);
+                }
+
                 // 执行操作
                 pst.executeBatch();
                 // 提交事务
